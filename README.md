@@ -1,1 +1,1 @@
-Arduino projects - Computer systems MFF UK
+Arduino projects - Computer Systems MFF UK
