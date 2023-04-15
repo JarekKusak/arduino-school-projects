@@ -36,7 +36,7 @@ Button button3(button3_pin, false, true); // button that switches into different
 Button buttons[3] = {button1, button2, button3};
 constexpr int buttonsCount = sizeof(buttons) / sizeof(buttons[0]);
 
-int returnDigit(int number){
+int returnDigit(int number) {
   int i = 0;
   int remainder;
 
@@ -66,9 +66,8 @@ void displayOutput(int order, int digit) {
 }
 
 void setup() {
-  for (int i = 0; i < buttonsCount; i++) {
+  for (int i = 0; i < buttonsCount; i++)
     buttons[i].setupPin();
-  }
   pinMode(latch_pin, OUTPUT);
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
@@ -76,7 +75,7 @@ void setup() {
 }
   
 void action(Button& button) {
-  if (button.Switch_button) {
+  if (button.Switch_button) { // button that switches order to show
     order--; // smaller value of order = higher actual order of number
     if (order < 0) 
       order=orderCount-1; // underflow (order overflow) - just sets as the first order
