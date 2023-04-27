@@ -18,7 +18,6 @@ int returnDigit(int number) {
       if (number < pow(10,j+1) && orderCount-order-1 > j)
           return 0;
   }
-
   // getting digits out of the number (finding the digit to show on the display)
   while (number != 0) {
       remainder = number % 10;
@@ -40,57 +39,42 @@ void displayOutput(int order, int digit) {
 class Button {
   private:
     int pin;
-    bool incOrDec; // true = increment, false = decrement/nothing
-    bool switchButton;
-    byte pressed;
-    byte wasPressed;
+    int value;
+    bool pressed;
+    bool wasPressed;
   public:
-  Button(int button_pin, bool inc_or_dec, bool does_switch) {
+  Button(int button_pin, int button_value = 1) {
     pin = button_pin;
-    incOrDec = inc_or_dec;
-    switchButton = does_switch;
+    value = button_value;
     pressed = OFF;
     wasPressed = OFF;
   }
 
+  int buttonValue() { // gets value for incrementation or decrementation
+    return value;
+  }
   void setupPin() {
     pinMode(pin, INPUT);
   }
 
-  void action() {
-    if (switchButton) { // button that switches order to show
-      order--; // smaller value of order = higher actual order of number
-      if (order < 0) 
-        order=orderCount-1; // underflow (order overflow) - just sets as the first order
-    }
-    else if (incOrDec) { // true == increment
-      number=number+pow(10,orderCount-order-1); // add's current order's power of ten
-      number=number%MAX_NUMBER;
-    }
-    else { // decrement
-      number=number-pow(10,orderCount-order-1); // substract's current order's power of ten
-      if (number < 0) // if underflow, substract max number and the negative value
-        number=MAX_NUMBER+number;
-    }
-    displayOutput(orderToShow[order], returnDigit(number)); // outputs on display, two parameters: order and the digit of number
-  }
-
-  void wasButtonPressed() {
-    byte buttonState = digitalRead(pin);
+  bool wasButtonPressed() {
+    bool buttonState = digitalRead(pin);
     pressed = buttonState;
+    bool isBeingPressed = false;
     if (pressed == ON) {
       if (wasPressed == OFF) // if button wasn't holded in previous iteration
-        action();
+        isBeingPressed = true;
       wasPressed = ON; // sets last button's state as held
     }
     else
        wasPressed = OFF;
+    return isBeingPressed;
   }
 };
 
-Button button1(button1_pin, true, false);
-Button button2(button2_pin, false, false);
-Button button3(button3_pin, false, true); // button that switches into different power of ten
+Button button1(button1_pin); // increment button (default value for increment is one)
+Button button2(button2_pin, -1); // decrement button (default value for decrement is minus one)
+Button button3(button3_pin); // button that switches into different power of ten
 Button buttons[3] = {button1, button2, button3};
 constexpr int buttonsCount = sizeof(buttons) / sizeof(buttons[0]);
 
@@ -100,10 +84,35 @@ void setup() {
   pinMode(latch_pin, OUTPUT);
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
-  displayOutput(orderToShow[order], number); // displays zero
+  displayOutput(orderToShow[order], number); // displays zero as default
+}
+
+int increment_or_decrement(int number, int value){
+  number=number+value*pow(10,orderCount-order-1); // add's current order's power of ten
+  if (number < 0) // if underflow, substract max number and the negative value
+    number=MAX_NUMBER+number;
+  number=number%MAX_NUMBER;
+  return number;
+}
+
+int switchOrder(int order){
+  order--; // smaller value of order = higher actual order of number
+  if (order < 0) 
+    order=orderCount-1; // underflow (order overflow) - just sets as the first order
+  return order;
 }
 
 void loop() {
-  for (int i = 0; i < buttonsCount; i++)
-    buttons[i].wasButtonPressed(); 
+  if(buttons[0].wasButtonPressed()) { // button that increments number
+    number = increment_or_decrement(number, buttons[0].buttonValue());
+    displayOutput(orderToShow[order], returnDigit(number)); // outputs on display, two parameters: order and the digit of number
+  }
+  else if (buttons[1].wasButtonPressed()){ // button that decrements number
+    number = increment_or_decrement(number, buttons[1].buttonValue()); 
+    displayOutput(orderToShow[order], returnDigit(number)); // outputs on display, two parameters: order and the digit of number   
+  }
+  else if (buttons[2].wasButtonPressed()){ // button that switches orders
+    order = switchOrder(order); 
+    displayOutput(orderToShow[order], returnDigit(number)); // outputs on display, two parameters: order and the digit of number    
+  }
 }
