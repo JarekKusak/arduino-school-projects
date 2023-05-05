@@ -40,17 +40,18 @@ class Display {
     const int ones = 4;
     const int tens = 2;
     const int hundreds = 1;
-    const int ONE_SECOND = 1000;
+    const int ONE_SECOND = 1000; // unused variable, cannot be multiplied by 10 nor 100 in conditions below..
     long timer = 0;
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
     int i = 0;
     bool start = false;
+    bool show = true;
+    long lastSavedTime;
   public:
-  
   void displayOutput(int order, int digit) {
-    if (digit == 0 && order == tens && timer < 10000)
+    if (digit == 0 && order == tens && timer < 10000) // if the digit to show is zero, order is at tens and timer (elapsed time) is less than 10 seconds, then do not show anything 
       return;
-    if (digit == 0 && order == hundreds && timer < 100000)
+    if (digit == 0 && order == hundreds && timer < 100000) // if the digit to show is zero, order is at hundreds and timer (elapsed time) is less than 100 seconds, then do not show anything 
       return;
     
     shiftOut(data_pin, clock_pin, MSBFIRST, (order == ones) ? digits[digit]-128 : digits[digit]); // if order is at ones, show decimal point
@@ -64,31 +65,30 @@ class Display {
     return (number / multiplier) % 10;
   }
   
-  bool show = true;
-  long temp;
   void showNumber(bool firstButtonWasPressed, bool secondButtonWasPressed, bool thirdButtonWasPressed, int deltaTime) {
-    if (firstButtonWasPressed && !start)
+    
+    if (firstButtonWasPressed && !start) // starting the count
       start = true;
-    else if (firstButtonWasPressed && start && show)
+    else if (firstButtonWasPressed && start && show) // stoping the count (also checking if not in lapped state)
       start = false;
 
-    if (start && secondButtonWasPressed && show)
+    if (start && secondButtonWasPressed && show) // switching into lapped state (still counting but not showing)
        show = false;
-    else if (start && secondButtonWasPressed && !show)
+    else if (start && secondButtonWasPressed && !show) // back into non-lapped mode
        show = true;
     
-    if (!start && thirdButtonWasPressed)
+    if (!start && thirdButtonWasPressed) // reseting the button if not running
       timer = 0;
         
     if (start)
       startCounting(deltaTime); 
     
-    if (show) {
-      temp = timer;
+    if (show) { // showing the elapsed time
+      lastSavedTime = timer;
       displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(timer/SHIFT, i));
     }
-    else 
-      displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(temp/SHIFT, i));
+    else // not showing the elapsed time (showing last saved time)
+      displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(lastSavedTime/SHIFT, i));
          
     i++;
     i%=orderCount;
@@ -114,8 +114,6 @@ void setup() {
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
   lastTime = millis(); // time at start 
-  Serial.begin(9600);
-  Serial.println(MAX_NUMBER);
 }
 
 void loop() {
