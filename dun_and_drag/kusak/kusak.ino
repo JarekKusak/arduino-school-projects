@@ -139,8 +139,7 @@ class Display {
     if (!generating) {
         showOnDisplay(randomNumber, mode, true);
         turningLedsOff();
-    }  
-                
+    }
   }
 } display;
 
