@@ -3,6 +3,7 @@
 unsigned long lastTime;
 bool previousMode = true; // mode before touching random button: true = normal, false = conf.
 bool mode = true; // mode after pushing down the button: true = normal, false = conf.
+bool generating = false; // detects if generating seed right now
 
 class Button {
   private:
@@ -17,7 +18,7 @@ class Button {
     pressed = OFF;
     wasPressed = OFF;
   }
-  int buttonValue() { // gets value for incrementation or decrementation
+  int buttonValue() { // getter for value of button (for instance incrementation value)
     return value;
   }
   void setupPin() {
@@ -52,19 +53,21 @@ class Display {
     const int thousands = 1;
     const int DELAY = 100;
     int index = 0;
-    byte randomFirst = 0b10001000;
-    byte randomSecond = 0b10000011;
-    byte randomThird = 0b11000110;
+    // random characters for simple animation
+    byte randomChar1 = 0b10001000; 
+    byte randomChar2 = 0b10000011;
+    byte randomChar3 = 0b11000110;
+ 
     byte d = 0b10100001; // letter d 
-    int animation[3]={randomFirst, randomSecond, randomThird};
-    int animationLettersCount = sizeof(animation)/sizeof(animation[0]);
+    int animation[3]={randomChar1, randomChar2, randomChar3};
+    int animationCharactersCount = sizeof(animation)/sizeof(animation[0]);
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
     int animationLetter = 0;
     int animationTimer = 0;
   public:
   
   void displayOutput(int order, int digit, bool mode) { 
-    shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds && !mode) ? digit : digits[digit]); // if order is at ones, show decimal point
+    shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds && !mode) ? digit : digits[digit]); // if order is at hundreds at conf. mode, show letter
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
@@ -80,39 +83,34 @@ class Display {
     index%=orderCount;
   }
 
-  void showOnDisplay(int n, bool mode) {
-    displayOutput(digit_muxpos[orderCount-index-1], getDigitAtPosition(n, index), mode); // getDigitAtPosition(n, index)
+  void showOnDisplay(int n, bool mode, bool multiDigitNumber) {
+    displayOutput(digit_muxpos[orderCount-index-1], (multiDigitNumber) ? getDigitAtPosition(n, index) : n, mode); // getDigitAtPosition(n, index)
     incrementIndex();
   }
 
-  void showOnDisplayOneNumber(int n, bool mode) {
-    displayOutput(digit_muxpos[orderCount-index-1], n, mode); // getDigitAtPosition(n, index)
-    incrementIndex();
-  }
-  
   void showWhileGenerating(bool mode, long deltaTime) {
-    showOnDisplayOneNumber(animation[animationLetter], mode);
+    showOnDisplay(animation[animationLetter], mode, false);
     animationTimer += deltaTime;
     if (animationTimer >= DELAY){
       animationLetter++;
       animationTimer = 0;
     }   
-    animationLetter%=animationLettersCount;
+    animationLetter%=animationCharactersCount;
   }
   
   void displayConfigurationMode(int numberOfThrows, int diceType, bool mode) {
     if (digit_muxpos[orderCount-index-1] == hundreds) // show staticly letter "d" on hundreds order
-      showOnDisplayOneNumber(d, mode);
+      showOnDisplay(d, mode, false);
     else if (digit_muxpos[orderCount-index-1] == thousands) // show staticly number of throws on thousand's place
-      showOnDisplayOneNumber(numberOfThrows, mode); 
+      showOnDisplay(numberOfThrows, mode, false); 
     else // on one's and ten's place show dice type (dice type of 100 is shown as 00)
-      showOnDisplay(diceType, mode);
+      showOnDisplay(diceType, mode, true);
   }
   
   void displayNormalMode(int randomNumber, bool mode, bool generating) {
     if (randomNumber > 0)
       if (!generating) {
-        showOnDisplay(randomNumber, mode);
+        showOnDisplay(randomNumber, mode, true);
         animationTimer = 0;
         animationLetter = 0;
       }      
@@ -187,7 +185,7 @@ void setup() {
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
 }
-bool generating = false;
+
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = currentTime - lastTime; // Time since last loop
