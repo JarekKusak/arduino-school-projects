@@ -52,10 +52,15 @@ class Display {
     const int hundreds = 2;
     const int thousands = 1;
     const int DELAY = 100;
+    const int leds[4] = {led1_pin, led2_pin, led3_pin, led4_pin};
+    const int ledCounter = sizeof(leds)/sizeof(leds[0]);
+    unsigned int LED_number = 0;
+    unsigned int LED_to_turn_off = 1;
+    bool direction;
     int index = 0;
-    // random characters for simple animation
-    byte randomChar1 = 0b10001000; 
-    byte randomChar2 = 0b10000011;
+    // totally random characters for simple animation
+    byte randomChar1 = 0b10101000; 
+    byte randomChar2 = 0b10010011;
     byte randomChar3 = 0b11000110;
  
     byte d = 0b10100001; // letter d 
@@ -71,6 +76,25 @@ class Display {
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
+  }
+
+  void turningLedsOff(){
+    for (int i = 0; i < ledCounter; i++)
+      digitalWrite(leds[i], OFF); 
+  }
+
+  void turningLedsOnAndOff(int LED_turn_on_index, int LED_turn_off_index) {
+    digitalWrite(leds[LED_turn_on_index], ON);
+    digitalWrite(leds[LED_turn_off_index], OFF);  
+  }
+
+  bool setLedsAndReturnDirection(int LED_turn_on_index, int LED_turn_off_index, bool direction) { // function sets LEDs and returns the direction of "blinking"
+    turningLedsOnAndOff(LED_turn_on_index, LED_turn_off_index);
+    if (LED_turn_on_index == 0)
+      direction = true;
+    else if (LED_turn_on_index == 3)
+      direction = false;
+    return direction;
   }
   
   int getDigitAtPosition(long number, int position) {
@@ -92,6 +116,10 @@ class Display {
     showOnDisplay(animation[animationLetter], mode, false);
     animationTimer += deltaTime;
     if (animationTimer >= DELAY){
+      direction = setLedsAndReturnDirection(LED_number, LED_to_turn_off, direction);
+      int increment_or_decrement = (direction) ? 1 : -1; // sets +1 or -1 due to the direction
+      LED_to_turn_off = LED_number; // sets actual LED as the one to turn off next iteration
+      LED_number = LED_number + increment_or_decrement; // increment or decrement by auxiliary variable
       animationLetter++;
       animationTimer = 0;
     }   
@@ -108,12 +136,11 @@ class Display {
   }
   
   void displayNormalMode(int randomNumber, bool mode, bool generating) {
-    if (randomNumber > 0)
-      if (!generating) {
+    if (!generating) {
         showOnDisplay(randomNumber, mode, true);
-        animationTimer = 0;
-        animationLetter = 0;
-      }      
+        turningLedsOff();
+    }  
+                
   }
 } display;
 
@@ -146,7 +173,7 @@ class Dice {
   
   int checkIfSeedGenerated() {
     if (!generatingSeed && timer > 0) { // if generating seed already stopped and timer is non-zero, then generate random number
-      randomSeed(timer);
+      randomSeed(timer); // generates a random seed depending on the elapsed time
       int sumOfRandomNumbers = 0;
       for (int i = 0; i < numberOfThrows; i++)
         sumOfRandomNumbers += random(1,dices[diceType]); 
@@ -180,10 +207,18 @@ void setup() {
   lastTime = millis(); // time at start
   for (int i = 0; i < buttonsCount; i++)
     buttons[i].setupPin();
+   // init. of LEDs (had to do it without cycle, because all variables for leds are in class Display)
+  pinMode(led1_pin, OUTPUT);
+  pinMode(led2_pin, OUTPUT);
+  pinMode(led3_pin, OUTPUT);
+  pinMode(led4_pin, OUTPUT);
+  
   randomSeed(analogRead(0)); // initialize randomSeed
+  
   pinMode(latch_pin, OUTPUT);
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
+  display.turningLedsOff();
 }
 
 void loop() {
