@@ -50,9 +50,17 @@ class Display {
     const int tens = 4;
     const int hundreds = 2;
     const int thousands = 1;
+    const int DELAY = 100;
     int index = 0;
+    byte randomFirst = 0b10001000;
+    byte randomSecond = 0b10000011;
+    byte randomThird = 0b11000110;
     byte d = 0b10100001; // letter d 
+    int animation[3]={randomFirst, randomSecond, randomThird};
+    int animationLettersCount = sizeof(animation)/sizeof(animation[0]);
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
+    int animationLetter = 0;
+    int animationTimer = 0;
   public:
   
   void displayOutput(int order, int digit, bool mode) { 
@@ -82,6 +90,16 @@ class Display {
     incrementIndex();
   }
   
+  void showWhileGenerating(bool mode, long deltaTime) {
+    showOnDisplayOneNumber(animation[animationLetter], mode);
+    animationTimer += deltaTime;
+    if (animationTimer >= DELAY){
+      animationLetter++;
+      animationTimer = 0;
+    }   
+    animationLetter%=animationLettersCount;
+  }
+  
   void displayConfigurationMode(int numberOfThrows, int diceType, bool mode) {
     if (digit_muxpos[orderCount-index-1] == hundreds) // show staticly letter "d" on hundreds order
       showOnDisplayOneNumber(d, mode);
@@ -90,10 +108,14 @@ class Display {
     else // on one's and ten's place show dice type (dice type of 100 is shown as 00)
       showOnDisplay(diceType, mode);
   }
-  void displayNormalMode(int randomNumber, bool mode) {
-    if (randomNumber > 0) {
-      showOnDisplay(randomNumber, mode);   
-    }    
+  
+  void displayNormalMode(int randomNumber, bool mode, bool generating) {
+    if (randomNumber > 0)
+      if (!generating) {
+        showOnDisplay(randomNumber, mode);
+        animationTimer = 0;
+        animationLetter = 0;
+      }      
   }
 } display;
 
@@ -127,14 +149,17 @@ class Dice {
   int checkIfSeedGenerated() {
     if (!generatingSeed && timer > 0) { // if generating seed already stopped and timer is non-zero, then generate random number
       randomSeed(timer);
-      randomNumber = numberOfThrows*random(1,dices[diceType]);
+      int sumOfRandomNumbers = 0;
+      for (int i = 0; i < numberOfThrows; i++)
+        sumOfRandomNumbers += random(1,dices[diceType]); 
+      randomNumber = sumOfRandomNumbers;
       timer = 0;
     }
     generatingSeed = false;
     return randomNumber;
   }
 
-  void increaseNumberOfThrows(int value){
+  void increaseNumberOfThrows(int value) {
     numberOfThrows+=value;
     if (numberOfThrows == maxNumberOfThrows)
       numberOfThrows = 1;
@@ -162,15 +187,18 @@ void setup() {
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
 }
-
+bool generating = false;
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = currentTime - lastTime; // Time since last loop
   bool seedGeneratingButtonBeingHeld = (buttons[0].isButtonBeingHeld() == ON) ? true : false;
   if (seedGeneratingButtonBeingHeld) {
     mode = true; // switches mode to normal mode (true)
-    if (previousMode) // if previous mode was configuration mode, then don't do anything until user unholds the button (we want only to switch into normal mode, not immediately generate)
-      dice.increaseTimer(deltaTime);      
+    if (previousMode) { // if previous mode was configuration mode, then don't do anything until user unholds the button (we want only to switch into normal mode, not immediately generate)
+      display.showWhileGenerating(mode, deltaTime);
+      generating = true;
+      dice.increaseTimer(deltaTime);
+    }      
   }
   else if (buttons[1].wasButtonPressed()) { // button that increments number of throws (conf. mode)
     mode = false; // switches mode to configuration mode (false)
@@ -190,6 +218,7 @@ void loop() {
   }
   if (previousMode != mode && !seedGeneratingButtonBeingHeld) // if previous mode isn't actual and seed generating button is not being held anymore, then set current mode
     previousMode = mode;
-  (mode) ? display.displayNormalMode(dice.checkIfSeedGenerated(), mode) : display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType(), mode); // display depends on current mode
+  (mode) ? display.displayNormalMode(dice.checkIfSeedGenerated(), mode, generating) : display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType(), mode); // display depends on current mode
+  generating = false;
   lastTime = currentTime;
 }
