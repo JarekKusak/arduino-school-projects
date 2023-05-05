@@ -1,6 +1,9 @@
 #include "funshield.h"
 
+unsigned long timer = 0;
 unsigned long lastTime;
+bool previousMode = true; // mode before touching random button: true = normal, false = conf.
+bool mode = true; // mode after pushing down the button: true = normal, false = conf.
 
 class Button {
   private:
@@ -49,9 +52,8 @@ class Display {
     const int hundreds = 2;
     const int thousands = 1;
     int index;
-    byte d = 0b10100001;
+    byte d = 0b10100001; // letter d 
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
-    bool configurationMode = false;
   public:
   
   void displayOutput(int order, int digit, bool mode) { 
@@ -72,27 +74,28 @@ class Display {
     return (number / multiplier) % 10;
   }
 
-  void showOnDisplay(int n, bool mode){
-    displayOutput(digit_muxpos[orderCount-index-1], getDigitAtPosition(n, index), mode); // getDigitAtPosition(n, index)
+  void incrementIndex(){
     index++;
     index%=orderCount;
   }
 
+  void showOnDisplay(int n, bool mode){
+    displayOutput(digit_muxpos[orderCount-index-1], getDigitAtPosition(n, index), mode); // getDigitAtPosition(n, index)
+    incrementIndex();
+  }
+
   void showOnDisplayOneNumber(int n, bool mode) {
     displayOutput(digit_muxpos[orderCount-index-1], n, mode); // getDigitAtPosition(n, index)
-    index++;
-    index%=orderCount;
+    incrementIndex();
   }
   
   void displayConfigurationMode(int numberOfThrows, int diceType, bool mode) {
-    if (digit_muxpos[orderCount-index-1] == ones)
-      showOnDisplay(diceType, mode); 
-    else if (digit_muxpos[orderCount-index-1] == tens)
-      showOnDisplay(diceType, mode);
-    else if (digit_muxpos[orderCount-index-1] == hundreds)
+    if (digit_muxpos[orderCount-index-1] == hundreds) // show staticly letter d on hundreds order
       showOnDisplayOneNumber(d, mode);
-    else if (digit_muxpos[orderCount-index-1] == thousands)
+    else if (digit_muxpos[orderCount-index-1] == thousands) // show staticly number of throws on thousand's place
       showOnDisplayOneNumber(numberOfThrows, mode); 
+    else // on one's and ten's place show dice type (dice type of 100 is shown as 00)
+      showOnDisplay(diceType, mode);
   }
   void displayNormalMode(int randomNumber, bool mode) {
     if (randomNumber > 0) {
@@ -140,8 +143,8 @@ class Dice {
     return randomNumber;
   }
 
-  void increaseNumberOfThrows(){
-    numberOfThrows++;
+  void increaseNumberOfThrows(int value){
+    numberOfThrows+=value;
     if (numberOfThrows == maxNumberOfThrows)
       numberOfThrows = 1;
     Serial.println(numberOfThrows);
@@ -155,12 +158,11 @@ class Dice {
 
 } dice;
 
-Button button1(button1_pin, 0); // normal mode (generates random seed)
+Button button1(button1_pin); // normal mode (generates random seed)
 Button button2(button2_pin, 1); // conf. mode (increases number of throws)
 Button button3(button3_pin); // conf. mode (increases sides of dice)
 Button buttons[3] = {button1, button2, button3};
 constexpr int buttonsCount = sizeof(buttons) / sizeof(buttons[0]);
-unsigned long timer = 0;
 
 void setup() {
   lastTime = millis(); // time at start
@@ -172,46 +174,30 @@ void setup() {
   pinMode(data_pin, OUTPUT);
   Serial.begin(9600);
 }
-bool previousMode = true; // mode before touching random button: true = normal, false = conf.
-bool mode = true; // mode after pushing down the button: true = normal, false = conf.
-bool temp = false;
+
+constexpr int DELAY = 200;
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = currentTime - lastTime; // Time since last loop
-  if (!mode && buttons[0].wasButtonPressed()) {
+  bool seedGeneratingButtonBeingHeld = (buttons[0].isButtonBeingHeld() == ON) ? true : false;
+  if (seedGeneratingButtonBeingHeld) {
     mode = true;
-    previousMode = mode;
-    Serial.println("mění se mode v 1");  
+    if (previousMode)
+      dice.increaseTimer(deltaTime);      
   }
-  else if (buttons[0].isButtonBeingHeld() == ON){
-    dice.increaseTimer(deltaTime);
-  }
-  /*if (buttons[0].wasButtonPressed()){
-    mode = true;
-    if (previousMode == mode) {
-      dice.increaseTimer(deltaTime);
-      Serial.println("generujeme");
-    } 
-    else {
-      previousMode = mode;
-      Serial.println("mění se mode v 1");
-    }
-  
-  }*/
-  else if (buttons[1].wasButtonPressed()){ // button that increments number of throws (conf. mode)
+  else if (buttons[1].wasButtonPressed()) { // button that increments number of throws (conf. mode)
     mode = false;
     //(previousMode == mode) ? dice.increaseNumberOfThrows() : previousMode = mode; 
     if (previousMode == mode) {
-      dice.increaseNumberOfThrows();
+      dice.increaseNumberOfThrows(buttons[1].buttonValue());
       Serial.println("přičítáme počet hodů");
     } 
     else {
       previousMode = mode;
       Serial.println("mění se mode v 2");
     }
-    
   }
-  else if (buttons[2].wasButtonPressed()){ // button that switches orders (conf. mode)
+  else if (buttons[2].wasButtonPressed()) { // button that switches orders (conf. mode)
     mode = false;
     //(previousMode == mode) ? dice.changeDiceType() : (previousMode = mode);
     if (previousMode == mode) {
@@ -221,9 +207,8 @@ void loop() {
       previousMode = mode;
     }
   }
-  if (mode)
-    display.displayNormalMode(dice.checkIfSeedGenerated(), mode);
-  else
-    display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType(), mode);
+  if (previousMode != mode && !seedGeneratingButtonBeingHeld) // if previous mode isn't actual and seed generating button is not being held anymore, then set present mode
+    previousMode = mode;
+  (mode) ? display.displayNormalMode(dice.checkIfSeedGenerated(), mode) : display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType(), mode);
   lastTime = currentTime;
 }
