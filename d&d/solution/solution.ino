@@ -15,7 +15,6 @@ class Button {
     pressed = OFF;
     wasPressed = OFF;
   }
-
   int buttonValue() { // gets value for incrementation or decrementation
     return value;
   }
@@ -50,49 +49,74 @@ class Display {
     const int tens = 2;
     const int hundreds = 1;
     byte d = 0b10100001;
-    const int ONE_SECOND = 1000;
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
-    bool start = false;
+    bool configurationMode = false;
   public:
   
-  void displayOutput(int order, int digit) {
-    shiftOut(data_pin, clock_pin, MSBFIRST, (order == ones) ? digits[digit]-128 : digits[digit]); // if order is at ones, show decimal point
+  void displayOutput(int order, int digit) { 
+    /*
+    if (digit == 0 && order == tens && timer < 10000)
+      return;
+    if (digit == 0 && order == hundreds && timer < 100000)
+      return;
+    */
+    shiftOut(data_pin, clock_pin, MSBFIRST, digits[digit]); // if order is at ones, show decimal point
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
   }
-  
+
+  int getDigitAtPosition(long number, int position) {
+    long multiplier = pow(10, position);
+    return (number / multiplier) % 10;
+  }  
 } display;
 
 class Dice {
   private: 
-    int timer = 0;
     bool generatingSeed = false;
+    int timer = 0;
+    int numberOfThrows = 1;
+    int maxNumberOfThrows = 10;
     int dices[7] = {4,6,8,10,12,20,100};
-    int dicesCount = 
-    int diceType = 0;
+    int dicesCount = sizeof(dices)/sizeof(dices[0]); 
+    int diceType = 0; 
   public:
-    
-    void increaseTimer(long deltaTime){
-      generatingSeed = true;
-      timer += deltaTime;
+  // getters
+  int returnDiceType() { // getter for type of dice
+    return dices[diceType];
+  }
+  int returnNumberOfThrows(){ // getter for number of throws
+    return numberOfThrows;
+  }
+  
+  void increaseTimer(long deltaTime){
+    generatingSeed = true;
+    timer += deltaTime;
+  }
+  
+  int checkIfSeedGenerated() {
+    int randomNumber = 0;
+    if (!generatingSeed && timer > 0) {
+      randomSeed(timer);
+      randomNumber = numberOfThrows*random(1,dices[diceType]); // 1 to 4 chance
+      timer = 0;
     }
-    
-    int checkIfSeedGenerated(){
-      int randomNumber = 0;
-      if (!generatingSeed && timer > 0) {
-        randomSeed(timer);
-        randomNumber = random(1,dices[diceType]); // 1 to 4 chance
-        timer = 0;
-      }
-      generatingSeed = false;
-      return randomNumber;
-    }
+    generatingSeed = false;
+    return randomNumber;
+  }
 
-    int changeDiceType(){
-      diceType++;
-      diceType%
-    }
+  int increaseNumberOfThrows(){
+    numberOfThrows++;
+    numberOfThrows%=maxNumberOfThrows;
+    return numberOfThrows;
+  }
+
+  int changeDiceType(){
+    diceType++;
+    diceType%=dicesCount;
+    return dices[diceType];
+  }
 
 } dice;
 
@@ -113,18 +137,30 @@ void setup() {
   pinMode(data_pin, OUTPUT);
   Serial.begin(9600);
 }
-
+bool previousMode = true; // mode before touching random button: true = normal, false = conf.
+bool mode = true; // mode after pushing down the button: true = normal, false = conf.
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = currentTime - lastTime; // Time since last loop
-  if (buttons[0].isButtonBeingHeld() == ON)
-    dice.increaseTimer(deltaTime);
+  if (buttons[0].isButtonBeingHeld() == ON){
+     mode = true;
+     if (previousMode == mode)
+      dice.increaseTimer(deltaTime);
+     else {
+      previousMode = mode;
+      
+     }
+  }
+   
   else if (buttons[1].wasButtonPressed()){ // button that increments number of throws (conf. mode)
-    
+    mode = false;
+    dice.increaseNumberOfThrows();
   }
   else if (buttons[2].wasButtonPressed()){ // button that switches orders (conf. mode)
+    mode = false;
+    dice.changeDiceType();
   }
-  if (dice.checkIfSeedGenerated() > 0)
+  if (dice.checkIfSeedGenerated() > 0 && mode)
     Serial.println("jj funguje");
   lastTime = currentTime;
 }
