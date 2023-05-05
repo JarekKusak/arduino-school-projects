@@ -54,14 +54,14 @@ class Display {
     bool configurationMode = false;
   public:
   
-  void displayOutput(int order, int digit) { 
+  void displayOutput(int order, int digit, bool mode) { 
     /*
     if (digit == 0 && order == hundreds && timer < 10000)
       return;
     if (digit == 0 && order == thousands && timer < 100000)
       return;
     */
-    shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds) ? digit : digits[digit]); // if order is at ones, show decimal point
+    shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds && !mode) ? digit : digits[digit]); // if order is at ones, show decimal point
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
@@ -72,33 +72,31 @@ class Display {
     return (number / multiplier) % 10;
   }
 
-  void showOnDisplay(int n){
-    displayOutput(digit_muxpos[orderCount-index-1], getDigitAtPosition(n, index)); // getDigitAtPosition(n, index)
+  void showOnDisplay(int n, bool mode){
+    displayOutput(digit_muxpos[orderCount-index-1], getDigitAtPosition(n, index), mode); // getDigitAtPosition(n, index)
     index++;
     index%=orderCount;
   }
 
-  void showOnDisplayOneNumber(int n) {
-    displayOutput(digit_muxpos[orderCount-index-1], n); // getDigitAtPosition(n, index)
+  void showOnDisplayOneNumber(int n, bool mode) {
+    displayOutput(digit_muxpos[orderCount-index-1], n, mode); // getDigitAtPosition(n, index)
     index++;
     index%=orderCount;
   }
   
-  void displayConfigurationMode(int numberOfThrows, int diceType) {
-    //Serial.println("jojo");
+  void displayConfigurationMode(int numberOfThrows, int diceType, bool mode) {
     if (digit_muxpos[orderCount-index-1] == ones)
-      showOnDisplay(diceType); 
+      showOnDisplay(diceType, mode); 
     else if (digit_muxpos[orderCount-index-1] == tens)
-      showOnDisplay(diceType);
+      showOnDisplay(diceType, mode);
     else if (digit_muxpos[orderCount-index-1] == hundreds)
-      showOnDisplayOneNumber(d);
+      showOnDisplayOneNumber(d, mode);
     else if (digit_muxpos[orderCount-index-1] == thousands)
-      showOnDisplayOneNumber(numberOfThrows); 
-      
+      showOnDisplayOneNumber(numberOfThrows, mode); 
   }
-  void displayNormalMode(int randomNumber) {
+  void displayNormalMode(int randomNumber, bool mode) {
     if (randomNumber > 0) {
-      showOnDisplay(randomNumber);   
+      showOnDisplay(randomNumber, mode);   
     }    
   }
 } display;
@@ -223,8 +221,8 @@ void loop() {
     }
   }
   if (mode)
-    display.displayNormalMode(dice.checkIfSeedGenerated());
+    display.displayNormalMode(dice.checkIfSeedGenerated(), mode);
   else
-    display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType());
+    display.displayConfigurationMode(dice.returnNumberOfThrows(), dice.returnDiceType(), mode);
   lastTime = currentTime;
 }
