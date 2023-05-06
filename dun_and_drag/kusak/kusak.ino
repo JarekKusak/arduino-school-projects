@@ -64,12 +64,23 @@ class Display {
     byte randomChar3 = 0b11000110;
  
     byte d = 0b10100001; // letter d 
-    int animation[3]={randomChar1, randomChar2, randomChar3};
-    int animationCharactersCount = sizeof(animation)/sizeof(animation[0]);
-    int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
+    const int animation[3]={randomChar1, randomChar2, randomChar3};
+    const int animationCharactersCount = sizeof(animation)/sizeof(animation[0]);
+    const int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
     int animationLetter = 0;
     int animationTimer = 0;
   public:
+
+  void setupLeds() {
+    for (int i = 0; i < ledCounter; i++)
+      pinMode(leds[i], OUTPUT);
+  }
+
+  void setupDisplay() {
+    pinMode(latch_pin, OUTPUT);
+    pinMode(clock_pin, OUTPUT);
+    pinMode(data_pin, OUTPUT);
+  }
   
   void displayOutput(int order, int digit, bool mode) { 
     shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds && !mode) ? digit : digits[digit]); // if order is at hundreds at conf. mode, show letter
@@ -78,7 +89,7 @@ class Display {
     digitalWrite(latch_pin, HIGH);
   }
 
-  void turningLedsOff(){
+  void turningLedsOff() {
     for (int i = 0; i < ledCounter; i++)
       digitalWrite(leds[i], OFF); 
   }
@@ -145,14 +156,14 @@ class Display {
 
 class Dice {
   private: 
-    bool generatingSeed = false;
+    const int maxNumberOfThrows = 10;
+    const int dices[7] = {4,6,8,10,12,20,100};
+    const int dicesCount = sizeof(dices)/sizeof(dices[0]); 
     int timer = 0;
     int numberOfThrows = 1;
-    int maxNumberOfThrows = 10;
-    int dices[7] = {4,6,8,10,12,20,100};
-    int dicesCount = sizeof(dices)/sizeof(dices[0]); 
     int diceType = 0; 
     int randomNumber = 0;
+    bool generatingSeed = false;
   public:
   // getters
   int returnDiceType() { // getter for type of dice
@@ -206,18 +217,10 @@ void setup() {
   lastTime = millis(); // time at start
   for (int i = 0; i < buttonsCount; i++)
     buttons[i].setupPin();
-   // init. of LEDs (had to do it without cycle, because all variables for leds are in class Display)
-  pinMode(led1_pin, OUTPUT);
-  pinMode(led2_pin, OUTPUT);
-  pinMode(led3_pin, OUTPUT);
-  pinMode(led4_pin, OUTPUT);
-  
-  randomSeed(analogRead(0)); // initialize randomSeed
-  
-  pinMode(latch_pin, OUTPUT);
-  pinMode(clock_pin, OUTPUT);
-  pinMode(data_pin, OUTPUT);
+  display.setupLeds();
+  display.setupDisplay();
   display.turningLedsOff();
+  randomSeed(analogRead(0)); // initialize randomSeed
 }
 
 void loop() {
