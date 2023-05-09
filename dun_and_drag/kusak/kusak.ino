@@ -47,10 +47,6 @@ class Button {
 
 class Display {
   private:
-    const int ones = 8; 
-    const int tens = 4;
-    const int hundreds = 2;
-    const int thousands = 1;
     const int DELAY = 100;
     const int leds[4] = {led1_pin, led2_pin, led3_pin, led4_pin};
     const int ledCounter = sizeof(leds)/sizeof(leds[0]);
@@ -83,7 +79,7 @@ class Display {
   }
   
   void displayOutput(int order, int digit, bool mode) { 
-    shiftOut(data_pin, clock_pin, MSBFIRST, (order == hundreds && !mode) ? digit : digits[digit]); // if order is at hundreds at conf. mode, show letter
+    shiftOut(data_pin, clock_pin, MSBFIRST, (order == digit_muxpos[1] && !mode) ? digit : digits[digit]); // if order is at hundreds at conf. mode, show letter
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
@@ -138,9 +134,9 @@ class Display {
   }
   
   void displayConfigurationMode(int numberOfThrows, int diceType, bool mode) {
-    if (digit_muxpos[orderCount-index-1] == hundreds) // show staticly letter "d" on hundreds order
+    if (digit_muxpos[orderCount-index-1] == digit_muxpos[1]) // show staticly letter "d" on hundreds order
       showOnDisplay(d, mode, false);
-    else if (digit_muxpos[orderCount-index-1] == thousands) // show staticly number of throws on thousand's place
+    else if (digit_muxpos[orderCount-index-1] == digit_muxpos[0]) // show staticly number of throws on thousand's place
       showOnDisplay(numberOfThrows, mode, false); 
     else // on one's and ten's place show dice type (dice type of 100 is shown as 00)
       showOnDisplay(diceType, mode, true);
