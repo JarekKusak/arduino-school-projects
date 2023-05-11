@@ -12,37 +12,40 @@ class Stopwatches {
     long timer = 0; // in miliseconds
     long lastSavedTime = 0;
   public:
-    void startOrStopState() {
-     if (state == stopped)
+  
+  void startOrStopState() {
+   if (state == stopped)
+    state = isRunning;
+   else if (state == isRunning)
+    state = stopped;
+  }
+  
+  void lappedState() {
+    if (state == isRunning)
+      state = lapped;
+    else if (state == lapped)
       state = isRunning;
-     else if (state == isRunning)
-      state = stopped;
+  }
+  
+  void resetTime() {
+    if (state == stopped)
+      timer = 0;
+  }
+  
+  long returnTime(long deltaTime) {
+    if (state == isRunning) {
+      lastSavedTime = timer;
+      startCounting(deltaTime);
     }
-    void lappedState() {
-      if (state == isRunning)
-        state = lapped;
-      else if (state == lapped)
-        state = isRunning;
-    }
-    void resetTime() {
-      if (state == stopped)
-        timer = 0;
-    }
-    long returnTime(long deltaTime) {
-      if (state == isRunning) {
-        lastSavedTime = timer;
-        startCounting(deltaTime);
-      }
-      else if (state == lapped)
-        startCounting(deltaTime);
-      return (state == isRunning || state == stopped) ? timer : lastSavedTime;
-    }
+    else if (state == lapped)
+      startCounting(deltaTime);
+    return (state == isRunning || state == stopped) ? timer : lastSavedTime;
+  }
 
   void startCounting(long deltaTime) {
     timer+=deltaTime;
     timer = timer%MAX_NUMBER;
   }
-  
 } stopwatches;
 
 class Button {
@@ -80,10 +83,6 @@ class Display {
     const int decimalPoint = 128;
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
     int i = 0;
-    bool start = false;
-    bool show = true;
-    long lastSavedTime;
-    
   public:
   void displayOutput(int order, int digit, long time) {
     for (int i = 0; i < orderCount-2; i++) { // if the order is higher than ones and leading zero is about to display, then don't display anything
@@ -106,7 +105,6 @@ class Display {
     i++;
     i%=orderCount;
   }
-  
 } display;
 
 Button button1(button1_pin); // start/stop stopwatches
@@ -123,7 +121,7 @@ void setup() {
   pinMode(data_pin, OUTPUT);
   lastTime = millis(); // time at start
 }
-long measuredTime = 0;
+
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = 0; // Time since last loop
@@ -136,4 +134,4 @@ void loop() {
     stopwatches.resetTime();
   display.showNumber(stopwatches.returnTime(deltaTime));
   lastTime = currentTime;
-}
+ }
