@@ -1,8 +1,49 @@
 #include "funshield.h"
 unsigned long lastTime;
-unsigned long number = 0;
 constexpr long SHIFT = 100;
 constexpr long MAX_NUMBER = 10000*SHIFT; // 10000*100 (SHIFT) 
+
+class Stopwatches {
+  private:
+    enum State { isRunning, stopped, lapped };
+    State state = stopped;
+    bool start = false;
+    bool show = true;
+    long timer = 0; // in miliseconds
+    long lastSavedTime = 0;
+  public:
+    void startOrStopState() {
+     if (state == stopped)
+      state = isRunning;
+     else if (state == isRunning)
+      state = stopped;
+    }
+    void lappedState() {
+      if (state == isRunning)
+        state = lapped;
+      else if (state == lapped)
+        state = isRunning;
+    }
+    void resetTime() {
+      if (state == stopped)
+        timer = 0;
+    }
+    long returnTime(long deltaTime) {
+      if (state == isRunning) {
+        lastSavedTime = timer;
+        startCounting(deltaTime);
+      }
+      else if (state == lapped)
+        startCounting(deltaTime);
+      return (state == isRunning || state == stopped) ? timer : lastSavedTime;
+    }
+
+  void startCounting(long deltaTime) {
+    timer+=deltaTime;
+    timer = timer%MAX_NUMBER;
+  }
+  
+} stopwatches;
 
 class Button {
   private:
@@ -36,25 +77,20 @@ class Button {
 
 class Display {
   private:
-    const int tenths = 8; 
-    const int ones = 4;
-    const int tens = 2;
-    const int hundreds = 1;
-    const int ONE_SECOND = 1000; // unused variable, cannot be multiplied by 10 nor 100 in conditions below..
-    long timer = 0;
+    const int decimalPoint = 128;
     int orderCount = sizeof(digit_muxpos) / sizeof(digit_muxpos[0]);
     int i = 0;
     bool start = false;
     bool show = true;
     long lastSavedTime;
-  public:
-  void displayOutput(int order, int digit) {
-    if (digit == 0 && order == tens && timer < 10000) // if the digit to show is zero, order is at tens and timer (elapsed time) is less than 10 seconds, then do not show anything 
-      return;
-    if (digit == 0 && order == hundreds && timer < 100000) // if the digit to show is zero, order is at hundreds and timer (elapsed time) is less than 100 seconds, then do not show anything 
-      return;
     
-    shiftOut(data_pin, clock_pin, MSBFIRST, (order == ones) ? digits[digit]-128 : digits[digit]); // if order is at ones, show decimal point
+  public:
+  void displayOutput(int order, int digit, long time) {
+    for (int i = 0; i < orderCount-2; i++) { // if the order is higher than ones and leading zero is about to display, then don't display anything
+      if (digit == 0 && order == digit_muxpos[i] && time < pow(10, orderCount+1-i)) 
+        return;
+    }
+    shiftOut(data_pin, clock_pin, MSBFIRST, (order == digit_muxpos[2]) ? digits[digit]-decimalPoint : digits[digit]); // if order is at ones, show decimal point
     shiftOut(data_pin, clock_pin, MSBFIRST, order); // ... on positions 1 and 3 (0101)
     digitalWrite(latch_pin, LOW); // Trigger the latch
     digitalWrite(latch_pin, HIGH);
@@ -65,38 +101,10 @@ class Display {
     return (number / multiplier) % 10;
   }
   
-  void showNumber(bool firstButtonWasPressed, bool secondButtonWasPressed, bool thirdButtonWasPressed, int deltaTime) {
-    
-    if (firstButtonWasPressed && !start) // starting the count
-      start = true;
-    else if (firstButtonWasPressed && start && show) // stoping the count (also checking if not in lapped state)
-      start = false;
-
-    if (start && secondButtonWasPressed && show) // switching into lapped state (still counting but not showing)
-       show = false;
-    else if (start && secondButtonWasPressed && !show) // back into non-lapped mode
-       show = true;
-    
-    if (!start && thirdButtonWasPressed) // reseting the button if not running
-      timer = 0;
-        
-    if (start)
-      startCounting(deltaTime); 
-    
-    if (show) { // showing the elapsed time
-      lastSavedTime = timer;
-      displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(timer/SHIFT, i));
-    }
-    else // not showing the elapsed time (showing last saved time)
-      displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(lastSavedTime/SHIFT, i));
-         
+  void showNumber(long time) {
+    displayOutput(digit_muxpos[orderCount-i-1], getDigitAtPosition(time/SHIFT, i), time);
     i++;
     i%=orderCount;
-  }
-
-  void startCounting(long deltaTime) {
-    timer+=deltaTime;
-    timer = timer%MAX_NUMBER;
   }
   
 } display;
@@ -113,13 +121,19 @@ void setup() {
   pinMode(latch_pin, OUTPUT);
   pinMode(clock_pin, OUTPUT);
   pinMode(data_pin, OUTPUT);
-  lastTime = millis(); // time at start 
+  lastTime = millis(); // time at start
 }
-
+long measuredTime = 0;
 void loop() {
   unsigned long currentTime = millis(); // Time since start
   unsigned long deltaTime = 0; // Time since last loop
   deltaTime = currentTime - lastTime;
-  display.showNumber(buttons[0].wasButtonPressed(), buttons[1].wasButtonPressed(), buttons[2].wasButtonPressed(), deltaTime);
+  if (buttons[0].wasButtonPressed())
+    stopwatches.startOrStopState();
+  else if (buttons[1].wasButtonPressed())
+    stopwatches.lappedState();
+  else if (buttons[2].wasButtonPressed())
+    stopwatches.resetTime();
+  display.showNumber(stopwatches.returnTime(deltaTime));
   lastTime = currentTime;
 }
