@@ -43,7 +43,7 @@ private:
   int messageIndex = -orderCount;
   int position = 3;
   const char* message;
-  bool messageReceived = false;
+  bool messageNeeded = true;
 
 public:
  
@@ -73,7 +73,7 @@ public:
       messageIndex++;
       if (messageIndex >= messageLength) {
         messageIndex = -orderCount;
-        messageReceived = false;
+        messageNeeded = true;
       }
     }
     displayChar((messageIndex + position < 0) || (messageIndex + position > messageLength) ? EMPTY_GLYPH : message[messageIndex + position], digit_muxpos[position]);
@@ -82,13 +82,14 @@ public:
       position = orderCount-1;
   }
 
-  bool checkIfMessageReceived() {
-    if (!messageReceived) { 
-      message = input.getMessage();
-      messageLength = length(message);
-      messageReceived = true;
-    }
-    return messageReceived;
+  void setMessage() {
+    message = input.getMessage();
+    messageLength = length(message);
+    messageNeeded = false;
+  }
+
+  bool needNewMessage() {
+    return messageNeeded;
   }
 }display;
 
@@ -104,7 +105,8 @@ void loop() {
   unsigned long currentTime = millis();
   unsigned long deltaTime = currentTime - lastTime;
   input.updateInLoop();
-  if (display.checkIfMessageReceived())
-    display.displayMessage(deltaTime);
+  if (display.needNewMessage())
+    display.setMessage();
+  display.displayMessage(deltaTime);
   lastTime = currentTime;
 }
